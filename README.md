@@ -1,6 +1,16 @@
-# 갤럭시 S10 (SM-G973N/F) 메인라인 리눅스 — Ubuntu 24.04 USB KVM
+# 갤럭시 S10+ / S10 (SM-G975N/F, SM-G973N/F) 메인라인 리눅스 — Ubuntu 24.04 USB KVM
 
-갤럭시 S10(엑시노스 9820, `beyond1lte`)에서 **메인라인 리눅스 7.2.13**과 **Ubuntu 24.04**를 돌리는 포트입니다.
+갤럭시 **S10+**(`beyond2lte`, 주 대상)와 S10(`beyond1lte`), 엑시노스 9820에서 **메인라인 리눅스 7.2.13**과
+**Ubuntu 24.04**를 돌리는 포트입니다. 한 이미지로 두 모델을 지원합니다: U-Boot가 부트로더 문자열(`G975`/`G973`)로
+모델을 알아보고 맞는 DT를 씁니다.
+
+| | S10+ (beyond2lte) | S10 (beyond1lte) |
+|---|---|---|
+| 패널 | S6E3HA9 "beyond2", 6.4", 70×148 mm | S6E3HA9 "beyond1", 6.1", 66×140 mm |
+| 패널 명령 | 같음 (scaler, CASET/PASET, init 순서, 밝기 단계) | |
+| 밝기 AOR 표 | beyond2 전용 | beyond1 전용 |
+| 배터리 | 4000 mAh | 3300 mAh |
+| 오디오·센서 허브·블루투스·충전·USB·Wi-Fi | 같은 배선/칩 | |
 목표는 폰을 **유전원 PD 허브**에 꽂아 두고, 허브에 단 **USB 시리얼→HID 젠더**와 **캡처카드**로 KVM을 하면서
 **PD 패스스루로 충전**하는 것. 화면에는 Ubuntu Desktop(터치 + 화상 키보드)이 떠서 폰에서 바로 관리할 수 있습니다.
 
@@ -8,13 +18,14 @@
 S10 패널 명령은 [butztill/s10-linux](https://github.com/butztill/s10-linux)에서 가져왔습니다.
 원래 S10e 설명은 [README.s10e.md](README.s10e.md)에 있습니다.
 
-> ⚠️ **S10 실기기에서 아직 부팅해 보지 않았습니다.** S10e에서 검증된 커널과 S10용 DTS·패널 드라이버를
-> 정적으로 대조해 만들었고, 아래 "펌웨어 대조" 항목은 SKT 순정 펌웨어로 확인했습니다.
+> ⚠️ **S10+·S10 실기기에서 아직 부팅해 보지 않았습니다.** S10e에서 검증된 커널과 DTS·패널 드라이버를
+> 정적으로 대조해 만들었습니다. 아래 "펌웨어 대조"는 **S10(SM-G973N) SKT 순정** 기준이고,
+> S10+(SM-G975N) 순정 펌웨어 대조는 아직입니다. S10+ 쪽 근거는 Samsung GPL 소스와 gangg111/S10Plus_Linux입니다.
 > 처음 플래시하기 전에 복구 방법(아래)을 먼저 준비하세요.
 
 ## 다운로드
 
-[릴리스](https://github.com/bmk-mikufan/linux-beyond1lte/releases)에서 받습니다.
+[릴리스](https://github.com/bmk-keyeast/linux-beyond1lte/releases)에서 받습니다.
 
 | 파일 | Odin 슬롯 | 내용 |
 |---|---|---|
@@ -114,7 +125,9 @@ cat /sys/class/typec/port0/{power_role,data_role,power_operation_mode}   # [sink
 lsusb -t; ls /dev/ttyUSB* /dev/ttyACM* /dev/video*
 ```
 
-## 순정 펌웨어 대조 (SM-G973N SKC G973NKSU7HXJ2)
+## 순정 펌웨어 대조 — S10 (SM-G973N SKC G973NKSU7HXJ2)
+
+S10+(SM-G975N) 순정 대조는 펌웨어를 받는 대로 추가합니다. 그전까지 boot 헤더의 board 문자열은 S10 순정값을 쓰는데, S10+ 포트(gangg111)는 board를 비워도 부팅했습니다.
 
 SamMobile 기준 MD5(`423dcc6bc787704e814d7ff9d4a3235e`)와 일치하는 SKT 순정 펌웨어를 열어서 코드의 가정과 비교했습니다.
 
