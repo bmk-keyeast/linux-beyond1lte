@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Samsung Galaxy S10+ (beyond2lte/SM-G975F, SM-G975N) device tree source.
+ *
+ * The S10 DT plus what differs on the S10+: model, panel variant and size
+ * (S6E3HA9 "beyond2 A3 S0", same commands, own AOR table), battery.
+ * Same board otherwise: gangg111/S10Plus_Linux (docs R19, R20, R12) has the
+ * CS47L93 on SPI2, both CS35L40 on hsi2c38 at 0x40/0x41 with reset gph1-1/2,
+ * the sensor hub on SPI17 and the BCM4375 Bluetooth with host-wake gpa2-3,
+ * as the S10/S10e DT here. Not yet booted on an S10+: see README.md.
+ */
+
+#include "exynos9820-beyond1lte.dts"
+
+/ {
+	model = "Samsung Galaxy S10+ (SM-G975)";
+	compatible = "samsung,beyond2lte", "samsung,exynos9820";
+};
+
+/* S-Boot's framebuffer is the same 1440x3040; the panel is 6.4" */
+&panel {
+	width-mm = <70>;
+	height-mm = <148>;
+};
+
+&decon {
+	panel@0 {
+		compatible = "samsung,s6e3ha9-beyond2";
+	};
+};
+
+/* chiffathefox's S10+ DT: 4000 mAh rated, 2.85 A fast charge */
+&battery {
+	constant-charge-current-max-microamp = <2850000>;
+	charge-full-design-microamp-hours = <4000000>;
+};

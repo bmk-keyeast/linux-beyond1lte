@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Samsung S6E3HA9 "beyond1 A3 S0" panel of the Galaxy S10 (1440x3040 AMOLED,
- * MIPI DSI command mode, 4 lanes).
+ * Samsung S6E3HA9 "beyond1/beyond2 A3 S0" panels of the Galaxy S10 and S10+
+ * (1440x3040 AMOLED, MIPI DSI command mode, 4 lanes).
  *
  * Like the S10e's panel-samsung-s6e3fa7-beyond0.c: the bootloader lights the
  * panel and the DSI link, nothing on mainline can power-cycle it, so it is
@@ -13,6 +13,11 @@
  * GPL beyond1 A3 S0 panel tables) are those of butztill/s10-linux
  * (kernel/overlay/drivers/gpu/drm/tiny/exynos9820-decon.c, GPL-2.0-only),
  * where they lit, dimmed and power-cycled the S10's panel.
+ *
+ * The S10+ panel takes the same commands (Samsung's s6e3ha9_beyond2_a3_s0_panel.h
+ * has the same scaler, CASET/PASET and init order as beyond1, and the same
+ * brightness steps, beyond2_a3_s0_brt_tbl); only its AOR values differ
+ * (beyond2_a3_s0_aor_table, LineageOS android_kernel_samsung_exynos9820).
  */
 
 #include <linux/backlight.h>
@@ -31,10 +36,16 @@
 
 #define MAX_BRIGHTNESS	255
 
+struct beyond1_variant {
+	const u16 *aor_values;	/* ARRAY_SIZE(beyond1_brightness_points) of them */
+	u16 width_mm, height_mm;
+};
+
 struct beyond1_panel {
 	struct drm_panel panel;
 	struct mipi_dsi_device *dsi;
 	struct backlight_device *bl;
+	const struct beyond1_variant *variant;
 	struct mutex lock;	/* the panel state against the backlight */
 	bool asleep;		/* SLEEP_IN sent; the bootloader leaves it awake */
 	bool display_on;
@@ -60,6 +71,7 @@ static const u8 beyond1_brightness_points[] = {
 	250, 255,
 };
 
+/* S10 (beyond1_a3_s0_aor_table) */
 static const u16 beyond1_aor_values[] = {
 	0x0bc9, 0x0bb0, 0x0b93, 0x0b77, 0x0b5f, 0x0b41, 0x0b20, 0x0b0a,
 	0x0ae2, 0x0ac1, 0x0a97, 0x0a72, 0x0a4f, 0x0a1e, 0x0a01, 0x09e0,
@@ -74,7 +86,22 @@ static const u16 beyond1_aor_values[] = {
 };
 static_assert(ARRAY_SIZE(beyond1_brightness_points) == ARRAY_SIZE(beyond1_aor_values));
 
-static u16 beyond1_aor(int level)
+/* S10+ (beyond2_a3_s0_aor_table), for the same brightness steps */
+static const u16 beyond2_aor_values[] = {
+	0x0bc1, 0x0bad, 0x0b8c, 0x0b72, 0x0b55, 0x0b35, 0x0b19, 0x0afa,
+	0x0ada, 0x0abc, 0x0a95, 0x0a6e, 0x0a41, 0x0a1b, 0x09ff, 0x09da,
+	0x099b, 0x097e, 0x0955, 0x0924, 0x08ff, 0x08d9, 0x089a, 0x0854,
+	0x0832, 0x07f1, 0x07ad, 0x0741, 0x0701, 0x06ba, 0x065e, 0x05f0,
+	0x0592, 0x0521, 0x04bb, 0x045d, 0x045d, 0x045d, 0x045d, 0x045d,
+	0x045d, 0x045d, 0x045d, 0x045d, 0x045d, 0x045d, 0x045d, 0x045d,
+	0x045d, 0x045d, 0x045d, 0x045d, 0x045d, 0x0442, 0x03bf, 0x0321,
+	0x026a, 0x01b3, 0x0158, 0x0158, 0x0158, 0x0158, 0x0158, 0x0158,
+	0x0158, 0x0158, 0x0145, 0x00f1, 0x00ba, 0x008a, 0x0029, 0x0014,
+	0x0014, 0x0014,
+};
+static_assert(ARRAY_SIZE(beyond1_brightness_points) == ARRAY_SIZE(beyond2_aor_values));
+
+static u16 beyond1_aor(const u16 *aor_values, int level)
 {
 	size_t i;
 
@@ -84,16 +111,16 @@ static u16 beyond1_aor(int level)
 		int hi = beyond1_brightness_points[i];
 
 		if (level <= hi)
-			return beyond1_aor_values[i - 1] +
-			       (beyond1_aor_values[i] - beyond1_aor_values[i - 1]) *
+			return aor_values[i - 1] +
+			       (aor_values[i] - aor_values[i - 1]) *
 			       (level - lo) / (hi - lo);
 	}
-	return beyond1_aor_values[ARRAY_SIZE(beyond1_aor_values) - 1];
+	return aor_values[ARRAY_SIZE(beyond1_brightness_points) - 1];
 }
 
-static void beyond1_set_aor(struct mipi_dsi_multi_context *ctx, int level)
+static void beyond1_set_aor(struct mipi_dsi_multi_context *ctx, const u16 *aor_values, int level)
 {
-	u16 aor = beyond1_aor(level);
+	u16 aor = beyond1_aor(aor_values, level);
 	u8 b1[] = { 0xb1, aor >> 8, aor & 0xff };
 
 	key2_on(ctx);
@@ -127,7 +154,7 @@ static int beyond1_prepare(struct drm_panel *panel)
 	key2_on(&ctx);
 	mipi_dsi_dcs_write_seq_multi(&ctx, 0x7a, 0x00);
 	key2_off(&ctx);
-	beyond1_set_aor(&ctx, backlight_get_brightness(bp->bl));
+	beyond1_set_aor(&ctx, bp->variant->aor_values, backlight_get_brightness(bp->bl));
 
 	if (!ctx.accum_err)
 		bp->asleep = false;
@@ -189,15 +216,25 @@ static const struct drm_display_mode beyond1_mode = {
 	.vsync_start = 3040 + 3,
 	.vsync_end = 3040 + 3 + 1,
 	.vtotal = 3040 + 3 + 1 + 15,
-	.width_mm = 66,
-	.height_mm = 140,
 	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
 };
 
 static int beyond1_get_modes(struct drm_panel *panel,
 			     struct drm_connector *connector)
 {
-	return drm_connector_helper_get_modes_fixed(connector, &beyond1_mode);
+	struct beyond1_panel *bp = to_beyond1(panel);
+	struct drm_display_mode *mode;
+
+	mode = drm_mode_duplicate(connector->dev, &beyond1_mode);
+	if (!mode)
+		return -ENOMEM;
+	drm_mode_set_name(mode);
+	mode->width_mm = bp->variant->width_mm;
+	mode->height_mm = bp->variant->height_mm;
+	connector->display_info.width_mm = mode->width_mm;
+	connector->display_info.height_mm = mode->height_mm;
+	drm_mode_probed_add(connector, mode);
+	return 1;
 }
 
 static const struct drm_panel_funcs beyond1_panel_funcs = {
@@ -218,7 +255,7 @@ static int beyond1_bl_update_status(struct backlight_device *bl)
 	if (bp->asleep)
 		return 0;
 
-	beyond1_set_aor(&ctx, backlight_get_brightness(bl));
+	beyond1_set_aor(&ctx, bp->variant->aor_values, backlight_get_brightness(bl));
 	return ctx.accum_err;
 }
 
@@ -244,6 +281,7 @@ static int beyond1_probe(struct mipi_dsi_device *dsi)
 		return PTR_ERR(bp);
 
 	bp->dsi = dsi;
+	bp->variant = of_device_get_match_data(dev);
 	bp->display_on = true;
 	ret = devm_mutex_init(dev, &bp->lock);
 	if (ret)
@@ -282,8 +320,17 @@ static void beyond1_remove(struct mipi_dsi_device *dsi)
 	drm_panel_remove(&bp->panel);
 }
 
+/* panel sizes: S10 66x140 mm (6.1"), S10+ 70x148 mm (6.4", vendor DT) */
+static const struct beyond1_variant beyond1_s10 = {
+	.aor_values = beyond1_aor_values, .width_mm = 66, .height_mm = 140,
+};
+static const struct beyond1_variant beyond2_s10plus = {
+	.aor_values = beyond2_aor_values, .width_mm = 70, .height_mm = 148,
+};
+
 static const struct of_device_id beyond1_of_match[] = {
-	{ .compatible = "samsung,s6e3ha9-beyond1" },
+	{ .compatible = "samsung,s6e3ha9-beyond1", .data = &beyond1_s10 },
+	{ .compatible = "samsung,s6e3ha9-beyond2", .data = &beyond2_s10plus },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, beyond1_of_match);
@@ -298,5 +345,5 @@ static struct mipi_dsi_driver beyond1_driver = {
 };
 module_mipi_dsi_driver(beyond1_driver);
 
-MODULE_DESCRIPTION("Samsung S6E3HA9 panel of the Galaxy S10 (bootloader handover)");
+MODULE_DESCRIPTION("Samsung S6E3HA9 panels of the Galaxy S10 and S10+ (bootloader handover)");
 MODULE_LICENSE("GPL");

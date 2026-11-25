@@ -67,7 +67,7 @@ jobs:
           xz -T0 -6 $U
           F="$U.xz"
           if [ "$DE" = desktop ]; then
-            F="$F s10-uboot-boot.tar.md5 u-boot-s10.bin exynos9820-beyond1lte.dtb"
+            F="$F s10-uboot-boot.tar.md5 u-boot-s10.bin exynos9820-beyond1lte.dtb exynos9820-beyond2lte.dtb"
           fi
           sha256sum $F > SHA256SUMS-$DE
           gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber $F SHA256SUMS-$DE

@@ -1,5 +1,6 @@
 #!/bin/sh
-# U-Boot for the Galaxy S10 (beyond1lte), packed for Odin (AP slot -> boot partition).
+# U-Boot for the Galaxy S10 (beyond1lte) and S10+ (beyond2lte), packed for Odin (AP slot -> boot
+# partition). One image for both: U-Boot picks the DT by the bootloader string (G973 / G975).
 #
 # chiffathefox/u-boot (exynos9820) + the S10e's mobian/uboot/u-boot-s10e.patch (the shared
 # Exynos 9820 DT and driver work), then the S10 device tree and environment from s10/uboot/.
@@ -30,17 +31,18 @@ git checkout -q -f "$UBOOT_REV"
 git clean -qfdx
 git apply "$TOP/mobian/uboot/u-boot-s10e.patch"
 D=dts/upstream/src/arm64/exynos
-cp "$TOP/s10/uboot/exynos9820-beyond1lte.dts" $D/exynos9820-beyond1lte.dts
+cp "$TOP/s10/uboot/exynos9820-beyond1lte.dts" "$TOP/s10/uboot/exynos9820-beyond2lte.dts" $D/
 cp "$TOP/s10/uboot/exynos-mobile.env" board/samsung/exynos-mobile/exynos-mobile.env
 # the S10 is the target: make its DT the default (the FIT still carries the others)
-sed -i 's|^CONFIG_DEFAULT_DEVICE_TREE=.*|CONFIG_DEFAULT_DEVICE_TREE="exynos/exynos9820-beyond1lte"|' configs/exynos9820_defconfig
+sed -i 's|^CONFIG_DEFAULT_DEVICE_TREE=.*|CONFIG_DEFAULT_DEVICE_TREE="exynos/exynos9820-beyond2lte"|' configs/exynos9820_defconfig
 
 make O=.output exynos9820_defconfig
 make O=.output -j"$JOBS"
 cp .output/u-boot.bin "$OUT/u-boot-s10.bin"
 # the Linux DT, for checking what the kernel gets
-cp .output/dts/upstream/src/arm64/exynos/exynos9820-beyond1lte.dtb "$OUT/" 2>/dev/null ||
-	find .output -name 'exynos9820-beyond1lte.dtb' -exec cp {} "$OUT/" \;
+for b in beyond1lte beyond2lte; do
+	find .output -name "exynos9820-$b.dtb" -exec cp {} "$OUT/" \;
+done
 
 cd "$OUT"
 rm -f boot.img
