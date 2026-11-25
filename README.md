@@ -20,7 +20,7 @@ S10 패널 명령은 [butztill/s10-linux](https://github.com/butztill/s10-linux)
 
 > ⚠️ **S10+·S10 실기기에서 아직 부팅해 보지 않았습니다.** S10e에서 검증된 커널과 DTS·패널 드라이버를
 > 정적으로 대조해 만들었습니다. 아래 "펌웨어 대조"는 **S10(SM-G973N) SKT 순정** 기준이고,
-> S10+(SM-G975N) 순정 펌웨어 대조는 아직입니다. S10+ 쪽 근거는 Samsung GPL 소스와 gangg111/S10Plus_Linux입니다.
+> S10+(SM-G975N)와 S10(SM-G973N) 모두 SKT 순정 펌웨어와 대조했습니다(아래).
 > 처음 플래시하기 전에 복구 방법(아래)을 먼저 준비하세요.
 
 ## 다운로드
@@ -125,9 +125,25 @@ cat /sys/class/typec/port0/{power_role,data_role,power_operation_mode}   # [sink
 lsusb -t; ls /dev/ttyUSB* /dev/ttyACM* /dev/video*
 ```
 
-## 순정 펌웨어 대조 — S10 (SM-G973N SKC G973NKSU7HXJ2)
+## 순정 펌웨어 대조 — S10+ (SM-G975N SKC G975NKSU7HXJ2)
 
-S10+(SM-G975N) 순정 대조는 펌웨어를 받는 대로 추가합니다. 그전까지 boot 헤더의 board 문자열은 S10 순정값을 쓰는데, S10+ 포트(gangg111)는 board를 비워도 부팅했습니다.
+samfw에서 받은 AP를 **삼성이 tar.md5에 적어 둔 MD5(`132adabf…db19d`)로 무결성 확인**한 뒤 대조했습니다.
+
+| 가정 | S10+ 순정에서 확인한 값 | 결과 |
+|---|---|---|
+| boot.img 헤더 (v1, page 2048, kernel 0x10008000, tags 0x10000100, 12.0.0/2023-04) | 같음 | ✅ |
+| board 문자열 | **`SRPRI28E007KU`** (S10은 `…D…`) | ✅ 기본값을 S10+ 값으로 |
+| vbmeta | flags 0, boot를 해시로 검증 (S10과 같은 구조) | ⚠️ → 검증 해제 vbmeta 포함 |
+| U-Boot의 S10+ 인식 (`G975` 접두사) | 펌웨어 `G975NKSU7HXJ2`, 보드 오버레이 "BEYOND2LTE KOR" | ✅ |
+| 파티션 이름 (GPT 소문자 `boot`/`userdata`/`vendor`/`efs`) | TWRP beyond2lte fstab | ✅ |
+| 패널 S6E3HA9 "beyond2 A3 S0" + S10+ 전용 AOR 표 | 순정 커널에 `beyond2_a3_s0` 224곳, AOR `0bc1 0bad 0b8c…` 있음 | ✅ |
+| 오디오 (CS47L93 spi_2 리셋 gpg1-0 IRQ gpa2-2, CS35L40 ×2 hsi2c_38 0x40/0x41 리셋 gph1-1/2 IRQ gpm24-0, 부스트 4100mA) | 소매판 오버레이(hw_rev 0x1a+)와 같음 | ✅ |
+| 센서 허브 (spi17 25MHz, host-req gpa1-7, mcu-req/resp gpg4-1/2, int gpa4-0, pwr-en gpg0-2, ap-rev 1) | 같음 | ✅ |
+| 블루투스 (en gpm8-0, wake gpg2-0, host-wake gpa2-3) | 같음 | ✅ |
+| 센서 허브 패치 (recovery 커널) | S10과 같은 3개, 소매판용 BlobLength 445267 | ✅ |
+| Wi-Fi·블루투스·오디오·MFC 펌웨어 파일 (vendor) | 모두 있음 | ✅ |
+
+## 순정 펌웨어 대조 — S10 (SM-G973N SKC G973NKSU7HXJ2)
 
 SamMobile 기준 MD5(`423dcc6bc787704e814d7ff9d4a3235e`)와 일치하는 SKT 순정 펌웨어를 열어서 코드의 가정과 비교했습니다.
 
